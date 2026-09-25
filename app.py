@@ -5,15 +5,12 @@ import pandas as pd
 import google.generativeai as genai
 from pypdf import PdfReader
 
-# 頁面標題與手機排版設定
 st.set_page_config(page_title="華語 PDF 伴讀助教", page_icon="📖", layout="centered")
 
 # ----------------- 1. 側邊欄：設定與 PDF 上傳 -----------------
 with st.sidebar:
     st.header("⚙️ 教師管理專區")
     api_key = st.text_input("Gemini API Key", type="password", help="在 Google AI Studio 申請的免費金鑰")
-    
-    # 支援教師直接在此上傳 PDF
     uploaded_pdf = st.file_uploader("📄 上傳本次課文 PDF", type=["pdf"])
     
     st.divider()
@@ -28,7 +25,6 @@ with st.sidebar:
         else:
             st.info("目前尚無紀錄")
 
-# 檢查必填項目
 if not student_id:
     st.warning("👈 歡迎！請先點擊左上角「>」展開側邊欄，輸入您的「學生代號」！")
     st.stop()
@@ -42,8 +38,7 @@ if uploaded_pdf:
         if text:
             reading_text += text + "\n"
 else:
-    # 預設範例文本（若未上傳 PDF 時使用）
-    reading_text = "（教師尚未上傳 PDF，目前使用預設課文）\n在台灣，夜市不僅是品嚐小吃的地方，更是體驗文化的重要窗口。近年來夜市開始引進行動支付，讓外國觀光客點餐更加方便，但也有人認為這減少了傳統的人情味。"
+    reading_text = "（教師尚未上傳 PDF，目前使用預設課文）\n在台灣，夜市不僅是品嚐小吃的地方，更是體驗文化的重要窗口。"
 
 # ----------------- 3. 手機上半部：固定閱讀區 -----------------
 st.caption("📖 本次閱讀教材內容")
@@ -96,7 +91,17 @@ if prompt := st.chat_input("輸入訊息回覆 AI 助教..."):
     else:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_PROMPT)
+            
+            # 【自動挑選可用的最新模型】避免版本更迭導致 404
+            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            selected_model = "gemini-2.0-flash"
+            for m in available_models:
+                if "flash" in m:
+                    selected_model = m
+                    break
+            
+            model = genai.GenerativeModel(selected_model, system_instruction=SYSTEM_PROMPT)
+            
             gemini_history = []
             for msg in st.session_state.messages[:-1]:
                 if not gemini_history and msg["role"] == "model":
