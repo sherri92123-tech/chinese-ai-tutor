@@ -93,14 +93,9 @@ if prompt := st.chat_input("輸入訊息回覆 AI 助教..."):
             genai.configure(api_key=api_key)
             
             # 【自動挑選可用的最新模型】避免版本更迭導致 404
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            selected_model = "gemini-2.0-flash"
-            for m in available_models:
-                if "flash" in m:
-                    selected_model = m
-                    break
-            
-            model = genai.GenerativeModel(selected_model, system_instruction=SYSTEM_PROMPT)
+           model = genai.GenerativeModel(
+    "gemini-3.8-flash", system_instruction=SYSTEM_PROMPT
+)
             
             gemini_history = []
             for msg in st.session_state.messages[:-1]:
