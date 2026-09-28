@@ -7,7 +7,38 @@ from pypdf import PdfReader
 
 st.set_page_config(page_title="華語 PDF 伴讀助教", page_icon="📖", layout="centered")
 
-# ----------------- 自訂 CSS：手機版白色大字與深色閱讀框 -----------------
+# ----------------- 中文文字清理：消除 PDF 抽取時每字強制換行的問題 -----------------
+def clean_cjk_text(text):
+    if not text:
+        return ""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    paragraphs = text.split("\n\n")
+    cleaned_paras = []
+    
+    for p in paragraphs:
+        lines = p.split("\n")
+        cleaned_line = ""
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if cleaned_line:
+                last_char = cleaned_line[-1]
+                first_char = line[0]
+                # 若為中文字、注音、常見全形標點符號，則緊密相連不換行、不加空格
+                if ('\u4e00' <= last_char <= '\u9fff' or last_char in "「」『』，。！？、：；（）《》…—") or \
+                   ('\u4e00' <= first_char <= '\u9fff' or first_char in "「」『』，。！？、：；（）《》…—"):
+                    cleaned_line += line
+                else:
+                    cleaned_line += " " + line
+            else:
+                cleaned_line = line
+        if cleaned_line:
+            cleaned_paras.append(cleaned_line)
+            
+    return "\n\n".join(cleaned_paras)
+
+# ----------------- 自訂 CSS：橫向白色大字與舒適行距 -----------------
 st.markdown("""
 <style>
     .reading-card {
@@ -15,16 +46,19 @@ st.markdown("""
         color: #ffffff !important;
         font-size: 19px !important;
         line-height: 1.8 !important;
-        padding: 16px;
+        letter-spacing: 0.5px;
+        padding: 18px;
         border-radius: 12px;
         border: 1px solid #3d3d5c;
         max-height: 250px;
         overflow-y: auto;
-        white-space: pre-wrap;
+        white-space: pre-line; /* 自然橫向換行，保留段落 */
+        word-break: break-word;
     }
-    .reading-card p, .reading-card span {
+    .reading-card p, .reading-card div {
         color: #ffffff !important;
         font-size: 19px !important;
+        margin-bottom: 12px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -53,7 +87,6 @@ with st.sidebar:
     st.subheader("📄 課文管理")
     uploaded_pdf = st.file_uploader("上傳新課文 PDF (上傳一次永久保存)", type=["pdf"])
     
-    # 只要上傳過一次，系統就會將文字寫入檔案永久保留
     if uploaded_pdf:
         reader = PdfReader(uploaded_pdf)
         extracted = ""
@@ -61,11 +94,14 @@ with st.sidebar:
             t = page.extract_text()
             if t:
                 extracted += t + "\n"
-        if extracted.strip():
+        
+        # 進行中文文字平整化修復
+        cleaned = clean_cjk_text(extracted)
+        if cleaned.strip():
             with open(LESSON_FILE, "w", encoding="utf-8") as f:
-                f.write(extracted)
-            saved_text = extracted
-            st.success("🎉 課文已成功保存！之後所有人打開都會自動載入此文章。")
+                f.write(cleaned)
+            saved_text = cleaned
+            st.success("🎉 課文已成功保存並排版完成！")
 
     st.divider()
     st.header("👨‍🎓 學生登入")
@@ -83,10 +119,9 @@ if not student_id:
     st.warning("👈 歡迎！請先點擊左上角「>」展開側邊欄，輸入您的「學生代號」！")
     st.stop()
 
-# 若尚未上傳過任何課文時的提示
 reading_text = saved_text if saved_text.strip() else "（教師尚未上傳課文，請先在側邊欄上傳 PDF 一次即可永久使用）"
 
-# ----------------- 3. 手機上半部：高對比白色大字閱讀區 -----------------
+# ----------------- 3. 手機上半部：高對比橫向白色大字閱讀區 -----------------
 st.caption("📖 本次閱讀教材內容 (可滑動閱讀)")
 st.markdown(f'<div class="reading-card">{reading_text}</div>', unsafe_allow_html=True)
 st.divider()
